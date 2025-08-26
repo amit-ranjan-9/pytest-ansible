@@ -61,6 +61,23 @@ OUR_FIXTURES = ("ansible_adhoc", "ansible_module", "ansible_facts")
 scenarios: list[MoleculeScenario] = []
 
 
+# Environment variable parsing function
+def load_env_vars(env_options):
+    """Parse environment variable options into a dictionary."""
+    if not env_options:
+        return {}
+    
+    env_dict = {}
+    for env_str in env_options:
+        if '=' in env_str:
+            key, value = env_str.split('=', 1)
+            env_dict[key] = value
+        else:
+            raise ValueError(f"Environment variable format should be KEY=VALUE, got: {env_str}")
+    
+    return env_dict
+
+
 def _load_scenarios(config: pytest.Config) -> None:
     # Find all molecule scenarios not gitignored
     if not (config.rootpath / ".git").exists():  # pragma: no-cover
@@ -210,6 +227,18 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=ansible.constants.DEFAULT_BECOME_ASK_PASS,
         help="ask for privilege escalation password (default: %(default)s)",
     )
+    
+    # Add -E option for environment variables
+    group.addoption(
+        "-E",
+        "--environment",
+        action="append",
+        dest="ansible_environment",
+        default=None,
+        metavar="KEY=VALUE",
+        help="set environment variable (can be used multiple times)",
+    )
+    
     group.addoption(
         "--ansible-unit-inject-only",
         action="store_true",
@@ -450,6 +479,11 @@ class PyTestAnsiblePlugin:
         kwargs["ask_become_pass"] = (
             kwargs.get("ask_become_pass") or ansible.constants.DEFAULT_BECOME_ASK_PASS
         )
+
+        # Load environment variables
+        env_options = config.getoption("ansible_environment")
+        if env_options:
+            kwargs["environment"] = load_env_vars(env_options)
 
         return kwargs
 

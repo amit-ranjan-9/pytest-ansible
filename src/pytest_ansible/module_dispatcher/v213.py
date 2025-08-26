@@ -228,6 +228,10 @@ class ModuleDispatcherV213(BaseModuleDispatcher):
             ],
         }
 
+        # Add environment variables if they exist
+        if self.options.get("environment"):
+            play_ds["tasks"][0]["environment"] = self.options["environment"]
+
         play = Play().load(
             play_ds,
             variable_manager=self.options["variable_manager"],
@@ -251,7 +255,17 @@ class ModuleDispatcherV213(BaseModuleDispatcher):
             # pylint catches on this as the signature has changed in 2.19+
             # This code has been deprecated and disabled for 2.19 and later
             # but pylint doesn't know about that.
-            tqm = TaskQueueManager(**kwargs)  # pylint: disable=unexpected-keyword-arg,useless-suppression
+            try:
+                tqm = TaskQueueManager(**kwargs)  # pylint: disable=unexpected-keyword-arg,useless-suppression
+            except TypeError:
+                # Fallback for Ansible 2.19+ - remove stdout_callback from kwargs
+                kwargs_fallback = kwargs.copy()
+                kwargs_fallback.pop("stdout_callback", None)
+                tqm = TaskQueueManager(**kwargs_fallback)
+                # Try to set callback after creation
+                if hasattr(tqm, '_stdout_callback'):
+                    tqm._stdout_callback = callback
+            
             tqm.run(play)
         finally:
             if tqm:
@@ -260,7 +274,16 @@ class ModuleDispatcherV213(BaseModuleDispatcher):
         if self.options.get("extra_inventory_manager", None):
             tqm_extra = None
             try:
-                tqm_extra = TaskQueueManager(**kwargs_extra)
+                try:
+                    tqm_extra = TaskQueueManager(**kwargs_extra)
+                except TypeError:
+                    # Fallback for Ansible 2.19+
+                    kwargs_extra_fallback = kwargs_extra.copy()
+                    kwargs_extra_fallback.pop("stdout_callback", None)
+                    tqm_extra = TaskQueueManager(**kwargs_extra_fallback)
+                    if hasattr(tqm_extra, '_stdout_callback'):
+                        tqm_extra._stdout_callback = callback_extra
+                
                 tqm_extra.run(play_extra)
             finally:
                 if tqm_extra:
