@@ -76,7 +76,31 @@ def load_env_vars(env_options):
             raise ValueError(f"Environment variable format should be KEY=VALUE, got: {env_str}")
     
     return env_dict
-
+def pytest_runtest_setup(item):
+    """Setup environment variables from markers before test execution"""
+    # Get environment variables from command line (existing functionality)
+    env_vars = getattr(item.config.option, 'ansible_environment', None) or []
+    cli_env = load_env_vars(env_vars)
+    
+    # Get environment variables from pytest markers
+    marker = item.get_closest_marker("ansible_env")
+    marker_env = {}
+    if marker:
+        if marker.args:
+            for env_string in marker.args:
+                if "=" in env_string:
+                    key, value = env_string.split("=", 1)
+                    marker_env[key] = value
+        if marker.kwargs:
+            marker_env.update(marker.kwargs)
+    
+    # Merge: marker < CLI (CLI takes precedence)
+    merged_env = {**marker_env, **cli_env}
+    
+    # Store for module dispatcher
+    if merged_env:
+        env_list = [f"{k}={v}" for k, v in merged_env.items()]
+        item.config.option.ansible_environment = env_list
 
 def _load_scenarios(config: pytest.Config) -> None:
     # Find all molecule scenarios not gitignored
@@ -282,6 +306,7 @@ def pytest_configure(config: pytest.Config) -> None:
     if not HAS_ANSIBLE:
         return
     config.addinivalue_line("markers", "ansible(**kwargs): Ansible integration")
+    config.addinivalue_line("markers", "ansible_env(env_vars): specify environment variables for ansible modules") 
 
     # Enable connection debugging
     if config.option.verbose > 0:
