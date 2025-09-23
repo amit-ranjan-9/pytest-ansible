@@ -105,17 +105,40 @@ class ModuleDispatcherV213(BaseModuleDispatcher):
                     module_loader.add_directory(path)
             else:
                 module_loader.add_directory(paths)
+        # standard module resolution first
         try:
             found = module_loader.find_plugin_with_context(name)
+            if getattr(found, "resolved", False):
+                return str(found.resolved_fqcn)
         except ModuleNotFoundError:
-            return ""
-        if not getattr(found, "resolved", False):
-            return ""
-        return str(found.resolved_fqcn)
-
+                        pass
+        # IBM z/OS core collection modules
+        if name.startswith('zos_'):
+            collection_name = f"ibm.ibm_zos_core.{name}"
+            try:
+                found = module_loader.find_plugin_with_context(collection_name)
+                if getattr(found, "resolved", False):
+                    return str(found.resolved_fqcn)
+            except ModuleNotFoundError:
+                pass
+        # other common collection patterns
+        common_collections = [
+            "community.general",
+            "ansible.posix", 
+            "community.crypto",
+            "community.network"
+        ]
+        for collection in common_collections:
+            collection_name = f"{collection}.{name}"
+            try:
+                found = module_loader.find_plugin_with_context(collection_name)
+                if getattr(found, "resolved", False):
+                    return str(found.resolved_fqcn)
+            except ModuleNotFoundError:
+                continue       
+        return ""
     def _run(self, *module_args, **complex_args):  # type: ignore[no-untyped-def]  # noqa: ANN002, ANN003, ANN202, C901, PLR0912, PLR0914, PLR0915
         """Execute an ansible adhoc command returning the result in a AdhocResult object.
-
         Raises:
             ansible.errors.AnsibleError: If the host is unreachable.
             AnsibleConnectionFailure: If the host is unreachable.
