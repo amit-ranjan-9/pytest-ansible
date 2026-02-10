@@ -224,6 +224,7 @@ class ModuleDispatcherV213(BaseModuleDispatcher):
             "become": self.options.get("become"),
             "become_user": self.options.get("become_user"),
             "gather_facts": "no",
+            "environment": self.options.get("environment", {}),
             "tasks": [
                 {
                     "action": {

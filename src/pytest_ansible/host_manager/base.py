@@ -22,6 +22,7 @@ class BaseHostManager:
 
     def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN002, ANN003, ARG002
         """Fixme."""
+        self.environment = kwargs.pop('environment', None) or {}
         self.options = kwargs
 
         self.check_required_kwargs(**kwargs)  # type: ignore[no-untyped-call]
@@ -105,6 +106,8 @@ class BaseHostManager:
         if not self.has_matching_inventory(item):  # type: ignore[no-untyped-call]
             raise KeyError(item)
         self.options["host_pattern"] = item
+        if self.environment:
+            self.options["environment"] = self.environment
         return self._dispatcher(**self.options)  # type: ignore[no-untyped-call]
 
     def __getattr__(self, attr):  # type: ignore[no-untyped-def]  # noqa: ANN001, ANN204
@@ -117,6 +120,8 @@ class BaseHostManager:
             msg = f"type HostManager has no attribute '{attr}'"
             raise AttributeError(msg)
         self.options["host_pattern"] = attr
+        if self.environment:
+            self.options["environment"] = self.environment
         return self._dispatcher(**self.options)  # type: ignore[no-untyped-call]
 
     def keys(self):  # type: ignore[no-untyped-def]  # noqa: ANN201
